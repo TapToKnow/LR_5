@@ -161,7 +161,7 @@ track.Genre.ToString(), track.Year.ToString() }));
                 var r = records[i];
                 if (r == null)
                     throw new InvalidDataException($"Трек №{i + 1}: пустая запись.");
-                result.Add(CreateTrack(r.Artist, r.Title, r.Genre, r.Year, i + 1));
+                result.Add(CreateTrack(r.Artist, r.Title, r.Genre, r.Year, $"Трек №{i + 1}"));
             }
             return result;
         }
@@ -173,6 +173,107 @@ track.Genre.ToString(), track.Year.ToString() }));
         public int ImportFromJson(string path, bool replace)
         {
             return Import(ReadJson(path), replace);
+        }
+
+        // ---------- Формат CSV ----------
+
+        private const char CsvSeparator = ';';
+        private static readonly string[] CsvHeader = { "Исполнитель", "Название", "Жанр", "Год" };
+
+        // Сохраняет всю коллекцию в файл CSV (разделитель «;», кодировка UTF-8 — файл открывается в Excel)
+        public void ExportToCsv(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Не указан путь к файлу.", nameof(path));
+
+            var sb = new StringBuilder();
+            sb.AppendLine(string.Join(CsvSeparator.ToString(), CsvHeader));
+            foreach (var t in tracks)
+            {
+                sb.AppendLine(string.Join(CsvSeparator.ToString(),
+                    new[] { t.Artist, t.Title, t.Genre, t.Year }.Select(EscapeCsv)));
+            }
+            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));
+        }
+
+        // Читает треки из файла CSV (коллекция при этом не меняется)
+        public List<MusicTrack> ReadCsv(string path)
+        {
+            CheckFile(path);
+            var lines = File.ReadAllLines(path, Encoding.UTF8);
+            var result = new List<MusicTrack>();
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (string.IsNullOrWhiteSpace(lines[i]))
+                    continue;
+                var fields = ParseCsvLine(lines[i], i + 1);
+                if (i == 0 && fields.Length == CsvHeader.Length &&
+                    string.Equals(fields[0].Trim(), CsvHeader[0], StringComparison.OrdinalIgnoreCase))
+                    continue; // строка заголовка
+                if (fields.Length != CsvHeader.Length)
+                    throw new InvalidDataException(
+                        $"Строка {i + 1}: ожидается {CsvHeader.Length} поля (исполнитель; название; жанр; год), найдено {fields.Length}.");
+                result.Add(CreateTrack(fields[0].Trim(), fields[1].Trim(), fields[2].Trim(), fields[3].Trim(), $"Строка {i + 1}"));
+            }
+            return result;
+        }
+
+        // Загружает коллекцию из файла CSV (параметр replace — как в ImportFromJson)
+        public int ImportFromCsv(string path, bool replace)
+        {
+            return Import(ReadCsv(path), replace);
+        }
+
+        // Экспорт с выбором формата по расширению файла (.json или .csv)
+        public void Export(string path)
+        {
+            if (IsCsv(path))
+                ExportToCsv(path);
+            else
+                ExportToJson(path);
+        }
+
+        // Импорт с выбором формата по расширению файла (.json или .csv)
+        public int ImportFromFile(string path, bool replace)
+        {
+            return IsCsv(path) ? ImportFromCsv(path, replace) : ImportFromJson(path, replace);
+        }
+
+        private static bool IsCsv(string path)
+        {
+            return string.Equals(Path.GetExtension(path ?? string.Empty), ".csv", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string EscapeCsv(string value)
+        {
+            value = value ?? string.Empty;
+            if (value.IndexOfAny(new[] { CsvSeparator, '"', '\r', '\n' }) >= 0)
+                return "\"" + value.Replace("\"", "\"\"") + "\"";
+            return value;
+        }
+
+        private static string[] ParseCsvLine(string line, int lineNumber)
+        {
+            var fields = new List<string>();
+            var current = new StringBuilder();
+            bool inQuotes = false;
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (inQuotes)
+                {
+                    if (c == '"' && i + 1 < line.Length && line[i + 1] == '"') { current.Append('"'); i++; }
+                    else if (c == '"') inQuotes = false;
+                    else current.Append(c);
+                }
+                else if (c == '"') inQuotes = true;
+                else if (c == CsvSeparator) { fields.Add(current.ToString()); current.Clear(); }
+                else current.Append(c);
+            }
+            if (inQuotes)
+                throw new InvalidDataException($"Строка {lineNumber}: не закрыта кавычка.");
+            fields.Add(current.ToString());
+            return fields.ToArray();
         }
 
         private int Import(List<MusicTrack> imported, bool replace)
@@ -202,7 +303,7 @@ track.Genre.ToString(), track.Year.ToString() }));
         }
 
         // Создание трека из файла с той же проверкой данных, что и при ручном вводе
-        private static MusicTrack CreateTrack(string artist, string title, string genre, string year, int number)
+        private static MusicTrack CreateTrack(string artist, string title, string genre, string year, string place)
         {
             try
             {
@@ -210,11 +311,11 @@ track.Genre.ToString(), track.Year.ToString() }));
             }
             catch (ArgumentException ex)
             {
-                throw new InvalidDataException($"Трек №{number}: {ex.Message.Split('\n')[0].Trim()}");
+                throw new InvalidDataException($"{place}: {ex.Message.Split('\n')[0].Trim()}");
             }
             catch (NullReferenceException)
             {
-                throw new InvalidDataException($"Трек №{number}: не заполнены обязательные поля.");
+                throw new InvalidDataException($"{place}: не заполнены обязательные поля.");
             }
         }
     }

@@ -133,7 +133,7 @@ namespace LR__1
             this.Controls.Add(importButton);
         }
 
-        private const string FileFilter = "Файлы JSON (*.json)|*.json";
+        private const string FileFilter = "Файлы JSON (*.json)|*.json|Файлы CSV (*.csv)|*.csv";
 
         // Экспорт коллекции в файл
         private void ExportCollection()
@@ -149,7 +149,7 @@ namespace LR__1
                     return;
                 try
                 {
-                    musicCollection.ExportToJson(dialog.FileName);
+                    musicCollection.Export(dialog.FileName);
                     MessageBox.Show($"Коллекция экспортирована ({musicCollection.Tracks.Count} тр.).", "Экспорт");
                 }
                 catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is UnauthorizedAccessException || ex is ArgumentException)
@@ -183,7 +183,7 @@ namespace LR__1
                 }
                 try
                 {
-                    int added = musicCollection.ImportFromJson(dialog.FileName, replace);
+                    int added = musicCollection.ImportFromFile(dialog.FileName, replace);
                     MessageBox.Show($"Импортировано треков: {added}.", "Импорт");
                 }
                 catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is UnauthorizedAccessException || ex is ArgumentException)
