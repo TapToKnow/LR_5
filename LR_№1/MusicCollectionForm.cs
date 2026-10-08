@@ -18,6 +18,8 @@ namespace LR__1
         private Button sortByYearButton;
         private Button exportButton;
         private Button importButton;
+        private Button backupButton;
+        private Button restoreButton;
         public MusicCollectionForm()
         {
             this.Text = "Управление музыкальной коллекцией";
@@ -124,6 +126,22 @@ namespace LR__1
                 Size = new System.Drawing.Size(100, 25)
             };
             importButton.Click += (sender, e) => ImportCollection();
+            backupButton = new Button
+            {
+                Name = "backupButton",
+                Location = new System.Drawing.Point(230, 355),
+                Text = "Резервная копия",
+                Size = new System.Drawing.Size(200, 25)
+            };
+            backupButton.Click += (sender, e) => CreateBackup();
+            restoreButton = new Button
+            {
+                Name = "restoreButton",
+                Location = new System.Drawing.Point(440, 355),
+                Text = "Восстановить",
+                Size = new System.Drawing.Size(120, 25)
+            };
+            restoreButton.Click += (sender, e) => RestoreBackup();
             this.Controls.Add(listView);
             this.Controls.Add(addTrackButton);
             this.Controls.Add(removeTrackButton);
@@ -131,6 +149,8 @@ namespace LR__1
             this.Controls.Add(sortByYearButton);
             this.Controls.Add(exportButton);
             this.Controls.Add(importButton);
+            this.Controls.Add(backupButton);
+            this.Controls.Add(restoreButton);
         }
 
         private const string FileFilter = "Файлы JSON (*.json)|*.json|Файлы CSV (*.csv)|*.csv";
@@ -190,6 +210,39 @@ namespace LR__1
                 {
                     MessageBox.Show("Не удалось загрузить коллекцию: " + ex.Message, "Ошибка импорта");
                 }
+            }
+        }
+
+        // Резервная копия коллекции в папку Backups рядом с программой
+        private void CreateBackup()
+        {
+            try
+            {
+                string path = musicCollection.CreateBackup(MusicCollection.DefaultBackupFolder);
+                MessageBox.Show("Резервная копия создана:\n" + path, "Резервная копия");
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                MessageBox.Show("Не удалось создать резервную копию: " + ex.Message, "Ошибка");
+            }
+        }
+
+        // Восстановление коллекции из последней резервной копии
+        private void RestoreBackup()
+        {
+            var answer = MessageBox.Show(
+                "Заменить текущую коллекцию последней резервной копией?",
+                "Восстановление", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (answer != DialogResult.Yes)
+                return;
+            try
+            {
+                int count = musicCollection.RestoreLatestBackup(MusicCollection.DefaultBackupFolder);
+                MessageBox.Show($"Коллекция восстановлена, треков: {count}.", "Восстановление");
+            }
+            catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is UnauthorizedAccessException)
+            {
+                MessageBox.Show("Не удалось восстановить коллекцию: " + ex.Message, "Ошибка");
             }
         }
     }

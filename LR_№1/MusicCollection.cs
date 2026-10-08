@@ -276,6 +276,49 @@ track.Genre.ToString(), track.Year.ToString() }));
             return fields.ToArray();
         }
 
+        // ---------- Резервное копирование ----------
+
+        // Папка резервных копий по умолчанию — Backups рядом с программой
+        public static string DefaultBackupFolder =>
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
+
+        // Создаёт резервную копию коллекции (JSON) с датой и временем в имени файла.
+        // Возвращает полный путь к созданному файлу.
+        public string CreateBackup(string folder)
+        {
+            if (string.IsNullOrWhiteSpace(folder))
+                throw new ArgumentException("Не указана папка для резервной копии.", nameof(folder));
+
+            Directory.CreateDirectory(folder);
+            string name = $"backup_{DateTime.Now:yyyyMMdd_HHmmss}";
+            string path = Path.Combine(folder, name + ".json");
+            for (int n = 2; File.Exists(path); n++)
+                path = Path.Combine(folder, $"{name}_{n}.json");
+
+            ExportToJson(path);
+            return path;
+        }
+
+        // Список резервных копий в папке: от новых к старым
+        public static List<string> GetBackups(string folder)
+        {
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                return new List<string>();
+            return Directory.GetFiles(folder, "backup_*.json")
+                .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+                .ThenByDescending(f => f, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        // Восстанавливает коллекцию из последней резервной копии в папке
+        public int RestoreLatestBackup(string folder)
+        {
+            var backups = GetBackups(folder);
+            if (backups.Count == 0)
+                throw new FileNotFoundException("Резервные копии не найдены.", folder);
+            return ImportFromJson(backups[0], true);
+        }
+
         private int Import(List<MusicTrack> imported, bool replace)
         {
             if (replace)
