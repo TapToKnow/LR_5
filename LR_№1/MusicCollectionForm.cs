@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,11 +16,13 @@ namespace LR__1
         private Button removeTrackButton;
         private Button searchByArtistButton;
         private Button sortByYearButton;
+        private Button exportButton;
+        private Button importButton;
         public MusicCollectionForm()
         {
             this.Text = "Управление музыкальной коллекцией";
             this.Width = 600;
-            this.Height = 400;
+            this.Height = 440;
             CreateControls();
             musicCollection = new MusicCollection(listView);
         }
@@ -105,11 +108,89 @@ namespace LR__1
                 Size = new System.Drawing.Size(120, 25)
             };
             sortByYearButton.Click += (sender, e) => musicCollection.SortByYear();
+            exportButton = new Button
+            {
+                Name = "exportButton",
+                Location = new System.Drawing.Point(10, 355),
+                Text = "Экспорт",
+                Size = new System.Drawing.Size(100, 25)
+            };
+            exportButton.Click += (sender, e) => ExportCollection();
+            importButton = new Button
+            {
+                Name = "importButton",
+                Location = new System.Drawing.Point(120, 355),
+                Text = "Импорт",
+                Size = new System.Drawing.Size(100, 25)
+            };
+            importButton.Click += (sender, e) => ImportCollection();
             this.Controls.Add(listView);
             this.Controls.Add(addTrackButton);
             this.Controls.Add(removeTrackButton);
             this.Controls.Add(searchByArtistButton);
             this.Controls.Add(sortByYearButton);
+            this.Controls.Add(exportButton);
+            this.Controls.Add(importButton);
+        }
+
+        private const string FileFilter = "Файлы JSON (*.json)|*.json";
+
+        // Экспорт коллекции в файл
+        private void ExportCollection()
+        {
+            using (var dialog = new SaveFileDialog
+            {
+                Title = "Экспорт коллекции",
+                Filter = FileFilter,
+                FileName = "music_collection"
+            })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+                try
+                {
+                    musicCollection.ExportToJson(dialog.FileName);
+                    MessageBox.Show($"Коллекция экспортирована ({musicCollection.Tracks.Count} тр.).", "Экспорт");
+                }
+                catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is UnauthorizedAccessException || ex is ArgumentException)
+                {
+                    MessageBox.Show("Не удалось сохранить файл: " + ex.Message, "Ошибка экспорта");
+                }
+            }
+        }
+
+        // Импорт коллекции из файла
+        private void ImportCollection()
+        {
+            using (var dialog = new OpenFileDialog
+            {
+                Title = "Импорт коллекции",
+                Filter = FileFilter
+            })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                bool replace = false;
+                if (musicCollection.Tracks.Count > 0)
+                {
+                    var answer = MessageBox.Show(
+                        "Заменить текущую коллекцию треками из файла?\n\n«Да» — заменить, «Нет» — добавить к текущим.",
+                        "Импорт", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                    if (answer == DialogResult.Cancel)
+                        return;
+                    replace = answer == DialogResult.Yes;
+                }
+                try
+                {
+                    int added = musicCollection.ImportFromJson(dialog.FileName, replace);
+                    MessageBox.Show($"Импортировано треков: {added}.", "Импорт");
+                }
+                catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is UnauthorizedAccessException || ex is ArgumentException)
+                {
+                    MessageBox.Show("Не удалось загрузить коллекцию: " + ex.Message, "Ошибка импорта");
+                }
+            }
         }
     }
 
